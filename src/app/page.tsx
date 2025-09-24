@@ -47,10 +47,10 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  const handleLogin = async (email, password) => {
+  const handleLogin = async (email: string, password: string) => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
-    } catch (error) {
+    } catch (error: any) {
       alert("Login Gagal: " + error.message);
     }
   };
@@ -58,7 +58,7 @@ export default function App() {
   const handleLogout = async () => {
     try {
       await signOut(auth);
-    } catch (error) {
+    } catch (error: any) {
       alert("Logout Gagal: " + error.message);
     }
   };
@@ -91,11 +91,11 @@ export default function App() {
 
 // --- KOMPONEN HALAMAN ---
 
-function LoginPage({ handleLogin }) {
+function LoginPage({ handleLogin }: { handleLogin: (email: string, password: string) => Promise<void> }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const onSubmit = (e) => {
+  const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     handleLogin(email, password);
   };
@@ -177,7 +177,6 @@ function InputArsipPage({ navigateTo }: { navigateTo: (page: string) => void }) 
     <div className="max-w-4xl mx-auto bg-white p-8 rounded-xl shadow-lg">
       <h2 className="text-2xl font-bold text-green-800 mb-6">Formulir Input Arsip Baru</h2>
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Form fields remain the same */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-4">
             <InputField label="No. Berkas" name="noBerkas" value={formData.noBerkas} onChange={handleChange} required />
@@ -252,8 +251,45 @@ function DaftarArsipPage({ navigateTo, isAdmin }: { navigateTo: (page: string) =
   
   const handlePrint = () => window.print();
   
-  const downloadPDF = async () => { /* ... unchanged ... */ };
-  const downloadCSV = () => { /* ... unchanged ... */ };
+  const downloadPDF = async () => {
+    try {
+        const { default: jsPDF } = await import('jspdf');
+        await import('jspdf-autotable');
+        const doc = new jsPDF('landscape');
+        (doc as any).autoTable({
+            html: '#arsipTable',
+            startY: 30,
+            headStyles: { fillColor: [210, 244, 222] },
+            didParseCell: function(data: any) {
+                if (data.column.index === 5 && data.section === 'body') {
+                    data.cell.text = '';
+                }
+            }
+        });
+        doc.text('Daftar Arsip Inaktif - Kecamatan Gunungpati', 20, 20);
+        doc.save('daftar-arsip.pdf');
+    } catch (err) {
+        console.error("Gagal membuat atau memuat PDF:", err);
+        alert("Gagal mengunduh PDF. Pastikan library jspdf sudah terpasang.");
+    }
+  };
+
+  const downloadCSV = () => {
+    const headers = ['No. Berkas', 'Kode Klasifikasi', 'Jenis Arsip', 'Kurun Waktu', 'Jumlah', 'Lokasi Simpan', 'Link File'];
+    const rows = filteredArsip.map(arsip => [
+      `"${arsip.noBerkas || ''}"`, `"${arsip.kodeKlasifikasi || ''}"`, `"${arsip.jenisArsip || ''}"`,
+      `"${arsip.kurunWaktu || ''}"`, `"${arsip.jumlah || ''}"`, `"${arsip.lokasiSimpan || ''}"`,
+      `"${arsip.fileUrl || ''}"`
+    ].join(','));
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "daftar-arsip.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
     <div className="bg-white p-6 rounded-xl shadow-lg" id="print-area">
@@ -274,22 +310,73 @@ function DaftarArsipPage({ navigateTo, isAdmin }: { navigateTo: (page: string) =
       <div className="overflow-x-auto">
         {loading ? <p>Memuat data...</p> : (
             <table className="w-full text-sm text-left text-gray-500" id="arsipTable">
-                {/* table content unchanged */}
+                <thead className="text-xs text-green-900 uppercase bg-green-200">
+                    <tr>
+                        <th scope="col" className="px-4 py-3">No.</th>
+                        <th scope="col" className="px-4 py-3">No. Berkas</th>
+                        <th scope="col" className="px-4 py-3">Jenis Arsip</th>
+                        <th scope="col" className="px-4 py-3">Kurun Waktu</th>
+                        <th scope="col" className="px-4 py-3">Lokasi</th>
+                        <th scope="col" className="px-4 py-3 print-hide">Lampiran</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {filteredArsip.map((arsip, index) => (
+                    <tr key={arsip.id} className="bg-white border-b hover:bg-gray-50">
+                        <td className="px-4 py-3">{index + 1}</td>
+                        <td className="px-4 py-3 font-medium text-gray-900">{arsip.noBerkas}</td>
+                        <td className="px-4 py-3">{arsip.jenisArsip}</td>
+                        <td className="px-4 py-3">{arsip.kurunWaktu}</td>
+                        <td className="px-4 py-3">{arsip.lokasiSimpan}</td>
+                        <td className="px-4 py-3 print-hide">
+                            <a href={arsip.fileUrl} target="_blank" rel="noopener noreferrer" className="text-green-600 hover:underline">
+                                Lihat File
+                            </a>
+                        </td>
+                    </tr>
+                ))}
+                {filteredArsip.length === 0 && (
+                    <tr><td colSpan={6} className="text-center py-10">Tidak ada data.</td></tr>
+                )}
+                </tbody>
             </table>
         )}
       </div>
-      <style>{`@media print { /* ... unchanged ... */ }`}</style>
+       <style>{`
+            @media print {
+                body * { visibility: hidden; }
+                #print-area, #print-area * { visibility: visible; }
+                #print-area { position: absolute; left: 0; top: 0; width: 100%; }
+                .print-hide { display: none; }
+            }
+        `}</style>
     </div>
   );
 }
 
-
-function AboutPage() { /* ... unchanged ... */ }
+function AboutPage() {
+  return (
+    <div className="max-w-4xl mx-auto bg-white p-8 rounded-xl shadow-lg">
+      <h2 className="text-2xl font-bold text-green-800 mb-4">Tentang Sistem Arsip Inaktif</h2>
+      <div className="space-y-4 text-gray-700">
+        <p>Website ini dirancang sebagai solusi modern untuk pengelolaan arsip inaktif di lingkungan Kantor Kecamatan Gunungpati. Tujuannya adalah untuk mempermudah proses penyimpanan, pencarian, dan pemeliharaan arsip yang sudah tidak aktif digunakan dalam kegiatan sehari-hari namun masih memiliki nilai guna.</p>
+        <h3 className="text-xl font-semibold text-green-700 pt-4">Mengapa Digitalisasi Arsip Penting?</h3>
+        <ul className="list-disc list-inside space-y-2">
+          <li><strong>Efisiensi Ruang:</strong> Mengurangi kebutuhan ruang fisik untuk menyimpan tumpukan dokumen.</li>
+          <li><strong>Kemudahan Akses:</strong> Mempercepat proses pencarian dan penemuan kembali arsip kapanpun dibutuhkan.</li>
+          <li><strong>Keamanan Data:</strong> Melindungi arsip dari risiko kerusakan fisik seperti kebakaran, kebanjiran, atau serangan hama.</li>
+          <li><strong>Transparansi & Akuntabilitas:</strong> Memudahkan pelacakan dan audit dokumen pemerintahan.</li>
+        </ul>
+        <p>Dengan beralih ke sistem digital, kita tidak hanya mengamankan aset informasi penting, tetapi juga meningkatkan efisiensi dan efektivitas kerja di era modern.</p>
+      </div>
+    </div>
+  );
+}
 
 // --- KOMPONEN BANTUAN ---
 
-function Navbar({ navigateTo, currentPage, isAdmin, handleLogout }) {
-  const NavLink = ({ pageName, children, adminOnly = false }) => {
+function Navbar({ navigateTo, currentPage, isAdmin, handleLogout }: { navigateTo: (page: string) => void, currentPage: string, isAdmin: boolean, handleLogout: () => Promise<void> }) {
+  const NavLink = ({ pageName, children, adminOnly = false }: { pageName: string, children: React.ReactNode, adminOnly?: boolean }) => {
     if (adminOnly && !isAdmin) return null;
     return (
       <button onClick={() => navigateTo(pageName.toLowerCase().replace(/ /g, ''))} className={`py-2 px-3 rounded-md text-sm font-medium transition-colors ${ currentPage === pageName.toLowerCase().replace(/ /g, '') ? 'bg-green-100 text-green-800' : 'text-gray-600 hover:bg-green-50 hover:text-green-700' }`}>
@@ -331,9 +418,4 @@ const ArchiveIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-
 const PrintIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>);
 const DownloadIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>);
 const ExternalLinkIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>);
-
-// Unchanged components
-// InputArsipPage, DaftarArsipPage (with minor changes), AboutPage, Footer, InputField, SelectField, ActionButton, all Icons
-// Note: Some logic details are omitted for brevity but are present in the full code.
-// The downloadPDF and downloadCSV functions inside DaftarArsipPage are also unchanged.
 
