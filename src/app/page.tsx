@@ -1,9 +1,10 @@
-'use client'; // <-- INI PENAMBAHANNYA
+'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, addDoc, onSnapshot, query, serverTimestamp } from 'firebase/firestore';
-import { getAuth, signInAnonymously } from "firebase/auth";
+// --- PERUBAHAN PENTING UNTUK TYPESCRIPT ---
+import { initializeApp, FirebaseApp } from 'firebase/app';
+import { getFirestore, collection, addDoc, onSnapshot, query, serverTimestamp, Firestore } from 'firebase/firestore';
+import { getAuth, signInAnonymously, Auth } from "firebase/auth";
 
 // --- KONFIGURASI FIREBASE ---
 const firebaseConfig = {
@@ -15,10 +16,10 @@ const firebaseConfig = {
   appId: "1:952353240263:web:2325af4587e2b21559bae2"
 };
 
-// Inisialisasi Firebase
-let app;
-let db;
-let auth;
+// --- Inisialisasi Firebase dengan Tipe Data ---
+let app: FirebaseApp;
+let db: Firestore;
+let auth: Auth;
 
 // Cek ini kita ubah agar tidak bentrok dengan logika 'use client'
 try {
@@ -27,7 +28,6 @@ try {
   auth = getAuth(app);
 } catch (e) {
   console.error("Firebase initialization error", e);
-  // Biarkan app, db, auth undefined jika error
 }
 
 
@@ -48,7 +48,7 @@ export default function App() {
     );
   }
 
-  const navigateTo = (pageName) => setPage(pageName);
+  const navigateTo = (pageName: string) => setPage(pageName);
 
   return (
     <div className="bg-gray-50 min-h-screen font-sans text-gray-800">
@@ -66,7 +66,7 @@ export default function App() {
 
 // --- KOMPONEN HALAMAN ---
 
-function HomePage({ navigateTo }) {
+function HomePage({ navigateTo }: { navigateTo: (page: string) => void }) {
   return (
     <div className="text-center py-20 md:py-32">
       <h1 className="text-4xl md:text-6xl font-bold text-green-800 mb-4">
@@ -95,24 +95,24 @@ function HomePage({ navigateTo }) {
   );
 }
 
-function InputArsipPage({ navigateTo }) {
+function InputArsipPage({ navigateTo }: { navigateTo: (page: string) => void }) {
   const [formData, setFormData] = useState({
-    noBerkas: '', kodeKlasifikasi: '', jenisArsip: '', kurunWaktu: new Date().getFullYear(),
+    noBerkas: '', kodeKlasifikasi: '', jenisArsip: '', kurunWaktu: new Date().getFullYear().toString(),
     tingkatPerkembangan: 'asli', jumlah: '', keterangan: '', noDefinitif: '',
     lokasiSimpan: '', retensiAktif: '', retensiInaktif: '', nasibAkhir: 'permanen',
-    kategoriArsip: 'biasa', fileUrl: '' // Diubah dari file menjadi fileUrl
+    kategoriArsip: 'biasa', fileUrl: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  const handleChange = (e) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.fileUrl) { // Cek jika link sudah diisi
+    if (!formData.fileUrl) {
       setError('Link lampiran wajib diisi.');
       return;
     }
@@ -125,11 +125,10 @@ function InputArsipPage({ navigateTo }) {
         createdAt: serverTimestamp(),
       });
       
-      // Menggunakan custom modal pengganti alert
       alert('Arsip berhasil disimpan!');
       navigateTo('list');
 
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error submitting archive:", err);
       setError('Gagal menyimpan arsip. Silakan coba lagi.');
       alert('Gagal menyimpan arsip: ' + err.message);
@@ -143,7 +142,6 @@ function InputArsipPage({ navigateTo }) {
       <h2 className="text-2xl font-bold text-green-800 mb-6">Formulir Input Arsip Baru</h2>
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Kolom Kiri */}
           <div className="space-y-4">
             <InputField label="No. Berkas" name="noBerkas" value={formData.noBerkas} onChange={handleChange} required />
             <InputField label="Kode Klasifikasi" name="kodeKlasifikasi" value={formData.kodeKlasifikasi} onChange={handleChange} required />
@@ -152,8 +150,6 @@ function InputArsipPage({ navigateTo }) {
              <SelectField label="Tingkat Perkembangan" name="tingkatPerkembangan" value={formData.tingkatPerkembangan} onChange={handleChange} options={['asli', 'copy', 'salinan', 'scan']} />
             <InputField label="Jumlah" name="jumlah" value={formData.jumlah} onChange={handleChange} placeholder="cth: 3 lembar" required/>
           </div>
-
-          {/* Kolom Kanan */}
           <div className="space-y-4">
             <InputField label="Keterangan" name="keterangan" value={formData.keterangan} onChange={handleChange} />
             <InputField label="No. Definitif Folder & Box" name="noDefinitif" value={formData.noDefinitif} onChange={handleChange} placeholder="cth: Fol. 1, Box 1" required />
@@ -166,8 +162,6 @@ function InputArsipPage({ navigateTo }) {
              <SelectField label="Kategori Arsip" name="kategoriArsip" value={formData.kategoriArsip} onChange={handleChange} options={['biasa', 'terjaga', 'rahasia']} />
           </div>
         </div>
-        
-        {/* Input Link File (PENGGANTI UPLOAD) */}
         <InputField 
             label="Link Lampiran File (dari Google Drive, dll.)" 
             name="fileUrl" 
@@ -176,9 +170,7 @@ function InputArsipPage({ navigateTo }) {
             placeholder="Tempel link file yang sudah dibagikan di sini" 
             required 
         />
-        
         {error && <p className="text-red-500 text-sm">{error}</p>}
-
         <div className="flex justify-end gap-4 pt-4">
           <button type="button" onClick={() => navigateTo('list')} className="py-2 px-4 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">Batal</button>
           <button type="submit" disabled={isSubmitting} className="py-2 px-6 bg-green-600 text-white font-semibold rounded-md hover:bg-green-700 disabled:bg-green-300">
@@ -190,8 +182,8 @@ function InputArsipPage({ navigateTo }) {
   );
 }
 
-function DaftarArsipPage({ navigateTo }) {
-  const [arsipList, setArsipList] = useState([]);
+function DaftarArsipPage({ navigateTo }: { navigateTo: (page: string) => void }) {
+  const [arsipList, setArsipList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -203,7 +195,7 @@ function DaftarArsipPage({ navigateTo }) {
     if (db) {
         const q = query(collection(db, 'arsip'));
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
-          const arsips = [];
+          const arsips: any[] = [];
           querySnapshot.forEach((doc) => {
             arsips.push({ id: doc.id, ...doc.data() });
           });
@@ -214,7 +206,6 @@ function DaftarArsipPage({ navigateTo }) {
           console.error("Error fetching data:", error);
           setLoading(false);
         });
-
         return () => unsubscribe();
     }
   }, []);
@@ -225,16 +216,15 @@ function DaftarArsipPage({ navigateTo }) {
     )
   );
   
-  // Fungsi Print dan Download tetap sama
   const handlePrint = () => window.print();
   
   const downloadPDF = async () => {
     try {
-      const { default: jsPDF } = await import('https://cdn.skypack.dev/jspdf');
-      await import('https://cdn.skypack.dev/jspdf-autotable');
+      const { default: jsPDF } = await import('jspdf');
+      const autoTable = (await import('jspdf-autotable')).default;
       const doc = new jsPDF('landscape');
       doc.text('Daftar Arsip Inaktif - Kecamatan Gunungpati', 20, 20);
-      doc.autoTable({ html: '#arsipTable', startY: 30, headStyles: { fillColor: [210, 244, 222] } });
+      autoTable(doc, { html: '#arsipTable', startY: 30, headStyles: { fillColor: [210, 244, 222] } });
       doc.save('daftar-arsip.pdf');
     } catch (err) {
       console.error("Gagal memuat atau membuat PDF:", err);
@@ -259,7 +249,6 @@ function DaftarArsipPage({ navigateTo }) {
     document.body.removeChild(link);
   };
 
-
   return (
     <div className="bg-white p-6 rounded-xl shadow-lg" id="print-area">
       <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 print-hide">
@@ -281,7 +270,6 @@ function DaftarArsipPage({ navigateTo }) {
           Input Arsip Baru
         </button>
       </div>
-
       <div className="overflow-x-auto">
         {loading ? <p>Memuat data...</p> : (
             <table className="w-full text-sm text-left text-gray-500" id="arsipTable">
@@ -311,7 +299,7 @@ function DaftarArsipPage({ navigateTo }) {
                     </tr>
                 ))}
                 {filteredArsip.length === 0 && (
-                    <tr><td colSpan="6" className="text-center py-10">Tidak ada data.</td></tr>
+                    <tr><td colSpan={6} className="text-center py-10">Tidak ada data.</td></tr>
                 )}
                 </tbody>
             </table>
@@ -350,9 +338,9 @@ function AboutPage() {
 
 // --- KOMPONEN BANTUAN ---
 
-function Navbar({ navigateTo, currentPage }) {
-  const NavLink = ({ pageName, children }) => (
-    <button onClick={() => navigateTo(pageName.toLowerCase().replace(' ', ''))} className={`py-2 px-3 rounded-md text-sm font-medium transition-colors ${ currentPage === pageName.toLowerCase().replace(' ', '') ? 'bg-green-100 text-green-800' : 'text-gray-600 hover:bg-green-50 hover:text-green-700' }`}>
+function Navbar({ navigateTo, currentPage }: { navigateTo: (page: string) => void; currentPage: string }) {
+  const NavLink = ({ pageName, children }: { pageName: string; children: React.ReactNode }) => (
+    <button onClick={() => navigateTo(pageName.toLowerCase().replace(/ /g, ''))} className={`py-2 px-3 rounded-md text-sm font-medium transition-colors ${ currentPage === pageName.toLowerCase().replace(/ /g, '') ? 'bg-green-100 text-green-800' : 'text-gray-600 hover:bg-green-50 hover:text-green-700' }`}>
       {children}
     </button>
   );
@@ -373,9 +361,9 @@ function Navbar({ navigateTo, currentPage }) {
 }
 
 const Footer = () => ( <footer className="text-center py-4 mt-10 text-sm text-gray-500"><p>&copy; {new Date().getFullYear()} Sistem Arsip Digital Kecamatan Gunungpati. All rights reserved.</p></footer>);
-const InputField = ({ label, name, value, onChange, type = 'text', placeholder, required = false }) => (<div><label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-1">{label}</label><input type={type} name={name} id={name} value={value} onChange={onChange} placeholder={placeholder} required={required} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"/></div>);
-const SelectField = ({ label, name, value, onChange, options, required = false }) => (<div><label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-1">{label}</label><select name={name} id={name} value={value} onChange={onChange} required={required} className="w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:ring-green-500 focus:border-green-500">{options.map(opt => <option key={opt} value={opt}>{opt.charAt(0).toUpperCase() + opt.slice(1)}</option>)}</select></div>);
-const ActionButton = ({ onClick, icon, text }) => (<button onClick={onClick} className="w-full md:w-auto flex items-center justify-center gap-2 bg-white text-gray-700 border border-gray-300 font-semibold py-2 px-4 rounded-md hover:bg-gray-100">{icon}{text}</button>);
+const InputField = ({ label, name, value, onChange, type = 'text', placeholder, required = false }: { label: string; name: string; value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; type?: string; placeholder?: string; required?: boolean }) => (<div><label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-1">{label}</label><input type={type} name={name} id={name} value={value} onChange={onChange} placeholder={placeholder} required={required} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"/></div>);
+const SelectField = ({ label, name, value, onChange, options, required = false }: { label: string; name: string; value: string; onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void; options: string[]; required?: boolean }) => (<div><label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-1">{label}</label><select name={name} id={name} value={value} onChange={onChange} required={required} className="w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:ring-green-500 focus:border-green-500">{options.map(opt => <option key={opt} value={opt}>{opt.charAt(0).toUpperCase() + opt.slice(1)}</option>)}</select></div>);
+const ActionButton = ({ onClick, icon, text }: { onClick: () => void; icon: React.ReactNode; text: string }) => (<button onClick={onClick} className="w-full md:w-auto flex items-center justify-center gap-2 bg-white text-gray-700 border border-gray-300 font-semibold py-2 px-4 rounded-md hover:bg-gray-100">{icon}{text}</button>);
 
 // --- IKON SVG ---
 const PlusIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>);
@@ -383,4 +371,3 @@ const FolderIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5
 const ArchiveIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>);
 const PrintIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>);
 const DownloadIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>);
-
