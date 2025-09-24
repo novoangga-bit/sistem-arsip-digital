@@ -67,6 +67,12 @@ export default function App() {
 function HomePage({ navigateTo }: { navigateTo: (page: string) => void }) {
   return (
     <div className="text-center py-20 md:py-32">
+      {/* --- LOGO KOTA SEMARANG DITAMBAHKAN DI SINI --- */}
+      <img 
+        src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e6/Lambang_Kota_Semarang.png/150px-Lambang_Kota_Semarang.png" 
+        alt="Logo Kota Semarang" 
+        className="mx-auto h-20 w-20 mb-6" 
+      />
       <h1 className="text-4xl md:text-6xl font-bold text-green-800 mb-4">
         Sistem Arsip Inaktif
       </h1>
