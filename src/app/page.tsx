@@ -69,12 +69,12 @@ function HomePage({ navigateTo }: { navigateTo: (page: string) => void }) {
     <div className="text-center py-20 md:py-32">
       {/* --- PERBAIKAN: Link Logo diganti ke sumber yang lebih stabil --- */}
       <img 
-        src="https://i.ibb.co/6bs02P8/Lambang-Kota-Semarang.png"
+        src="https://drive.google.com/file/d/1A_2idY7vjQ4M31wfYXcziCT3k7K_hxHk/preview"
         alt="Logo Kota Semarang" 
         className="mx-auto h-20 w-20 mb-6" 
       />
       <h1 className="text-4xl md:text-6xl font-bold text-green-800 mb-4">
-        Sistem Arsip Inaktif
+        Sistem Daftar Arsip Inaktif
       </h1>
       <p className="text-lg md:text-xl text-gray-600 mb-10 max-w-2xl mx-auto">
         Kecamatan Gunungpati
