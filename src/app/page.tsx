@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { initializeApp, FirebaseApp } from 'firebase/app';
 import { getFirestore, collection, addDoc, onSnapshot, query, serverTimestamp, Firestore } from 'firebase/firestore';
 import { getAuth, signInAnonymously, Auth, onAuthStateChanged } from "firebase/auth";
@@ -118,6 +118,7 @@ function InputArsipPage({ navigateTo }: { navigateTo: (page: string) => void }) 
     setError('');
 
     try {
+      if (!db) throw new Error("Database not initialized");
       await addDoc(collection(db, 'arsip'), {
         ...formData,
         createdAt: serverTimestamp(),
@@ -188,12 +189,10 @@ function DaftarArsipPage({ navigateTo }: { navigateTo: (page: string) => void })
   useEffect(() => {
     if (!auth || !db) return;
 
-    // Menggunakan onAuthStateChanged untuk memastikan user sudah login sebelum mengambil data
     const unsubscribeAuth = onAuthStateChanged(auth, user => {
       let unsubscribeSnapshot: () => void = () => {};
 
       if (user) {
-        // Jika user sudah terautentikasi (secara anonim), maka ambil data
         const q = query(collection(db, 'arsip'));
         unsubscribeSnapshot = onSnapshot(q, (querySnapshot) => {
           const arsips: any[] = [];
@@ -208,17 +207,11 @@ function DaftarArsipPage({ navigateTo }: { navigateTo: (page: string) => void })
           setLoading(false);
         });
       } else {
-        // Jika tidak ada user, coba login secara anonim. Ini akan memicu onAuthStateChanged lagi.
         signInAnonymously(auth).catch(error => console.error("Anonymous auth failed:", error));
       }
-
-      // Cleanup function untuk listener snapshot saat user berubah atau komponen unmount
-      return () => {
-        unsubscribeSnapshot();
-      };
+      return () => unsubscribeSnapshot();
     });
 
-    // Cleanup function untuk listener autentikasi
     return () => unsubscribeAuth();
   }, []);
 
@@ -232,19 +225,29 @@ function DaftarArsipPage({ navigateTo }: { navigateTo: (page: string) => void })
   
   const downloadPDF = async () => {
     try {
+      // PERBAIKAN: Mengimpor library secara dinamis saat fungsi dipanggil
       const { default: jsPDF } = await import('jspdf');
-      const autoTable = (await import('jspdf-autotable')).default;
+      await import('jspdf-autotable'); // Cukup diimpor untuk menambahkan fungsionalitasnya
+      
       const doc = new jsPDF('landscape');
+      
+      // Menggunakan 'any' untuk mengakses metode autoTable yang ditambahkan secara dinamis
       (doc as any).autoTable({ 
           html: '#arsipTable', 
           startY: 30, 
-          headStyles: { fillColor: [210, 244, 222] } 
+          headStyles: { fillColor: [210, 244, 222] },
+          didParseCell: function(data: any) {
+              // Menghapus kolom terakhir (Lampiran) dari PDF
+              if (data.column.index === 5) {
+                  data.cell.text = '';
+              }
+          }
       });
       doc.text('Daftar Arsip Inaktif - Kecamatan Gunungpati', 20, 20);
       doc.save('daftar-arsip.pdf');
     } catch (err) {
-      console.error("Gagal memuat atau membuat PDF:", err);
-      alert("Gagal mengunduh PDF. Pastikan Anda terhubung ke internet.");
+        console.error("Gagal membuat atau memuat PDF:", err);
+        alert("Gagal mengunduh PDF. Pastikan library jspdf sudah terpasang.");
     }
   };
 
