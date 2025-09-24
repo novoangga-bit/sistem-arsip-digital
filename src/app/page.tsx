@@ -69,7 +69,7 @@ function HomePage({ navigateTo }: { navigateTo: (page: string) => void }) {
     <div className="text-center py-20 md:py-32">
       {/* --- PERBAIKAN: Link Logo diganti ke sumber yang lebih stabil --- */}
       <img 
-        src="https://drive.google.com/uc?export=view&id=1A_2idY7vjQ4M31wfYXcziCT3k7K_hxHk"
+        src="https://drive.google.com/file/d/1A_2idY7vjQ4M31wfYXcziCT3k7K_hxHk/preview"
         alt="Logo Kota Semarang" 
         className="mx-auto h-20 w-20 mb-6" 
       />
