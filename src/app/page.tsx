@@ -225,20 +225,19 @@ function DaftarArsipPage({ navigateTo }: { navigateTo: (page: string) => void })
   
   const downloadPDF = async () => {
     try {
-      // PERBAIKAN: Mengimpor library secara dinamis saat fungsi dipanggil
       const { default: jsPDF } = await import('jspdf');
-      await import('jspdf-autotable'); // Cukup diimpor untuk menambahkan fungsionalitasnya
+      await import('jspdf-autotable');
       
       const doc = new jsPDF('landscape');
       
-      // Menggunakan 'any' untuk mengakses metode autoTable yang ditambahkan secara dinamis
       (doc as any).autoTable({ 
           html: '#arsipTable', 
           startY: 30, 
           headStyles: { fillColor: [210, 244, 222] },
           didParseCell: function(data: any) {
-              // Menghapus kolom terakhir (Lampiran) dari PDF
-              if (data.column.index === 5) {
+              if (data.column.index === 5 && data.section === 'body') {
+                  // This is the "Lampiran" column, we clear the content
+                  // so it doesn't show the "Lihat File" text in the PDF.
                   data.cell.text = '';
               }
           }
@@ -247,7 +246,7 @@ function DaftarArsipPage({ navigateTo }: { navigateTo: (page: string) => void })
       doc.save('daftar-arsip.pdf');
     } catch (err) {
         console.error("Gagal membuat atau memuat PDF:", err);
-        alert("Gagal mengunduh PDF. Pastikan library jspdf sudah terpasang.");
+        alert("Gagal mengunduh PDF. Pastikan library jspdf sudah terpasang dengan menjalankan 'npm install jspdf jspdf-autotable'");
     }
   };
 
