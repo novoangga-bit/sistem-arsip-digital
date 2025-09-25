@@ -48,6 +48,7 @@ type Arsip = {
     nasibAkhir: string;
     kategoriArsip: string;
     fileUrl: string;
+    createdAt?: any; // PERBAIKAN: Menambahkan createdAt
 };
 
 // --- KOMPONEN UTAMA ---
@@ -63,14 +64,17 @@ export default function App() {
       setUser(currentUser);
       setIsAdmin(currentUser?.email === ADMIN_EMAIL);
       setAuthLoading(false);
-      if (!currentUser || currentUser.email !== ADMIN_EMAIL) {
+      // Logika Navigasi setelah status login berubah
+      if (currentUser?.email === ADMIN_EMAIL) {
+        // Jika admin login, arahkan ke home (kecuali sedang edit)
+        if(page !== 'input') setPage('home');
+      } else {
+        // Jika bukan admin atau belum login, arahkan ke daftar arsip
         setPage('list');
-      } else if (page !== 'input') { // Keep page if editing
-        setPage('home');
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [page]); // Menambahkan 'page' sebagai dependensi
 
   const handleLogin = async (email: string, password: string) => {
     try {
@@ -201,9 +205,9 @@ function InputArsipPage({ navigateTo, editingArsip, clearEditing }: { navigateTo
     try {
       if (!db) throw new Error("Database not initialized");
       
-      if (editingArsip) {
+      if (editingArsip && editingArsip.id) {
         // Update existing document
-        const docRef = doc(db, 'arsip', editingArsip.id!);
+        const docRef = doc(db, 'arsip', editingArsip.id);
         const { id, ...dataToUpdate } = formData; // Exclude id from data
         await updateDoc(docRef, dataToUpdate);
         alert('Arsip berhasil diperbarui!');
