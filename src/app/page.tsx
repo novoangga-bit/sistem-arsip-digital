@@ -48,7 +48,7 @@ type Arsip = {
     nasibAkhir: string;
     kategoriArsip: string;
     fileUrl: string;
-    createdAt?: any; // PERBAIKAN: Menambahkan createdAt
+    createdAt?: any;
 };
 
 // --- KOMPONEN UTAMA ---
@@ -62,19 +62,19 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-      setIsAdmin(currentUser?.email === ADMIN_EMAIL);
+      const isAdminUser = currentUser?.email === ADMIN_EMAIL;
+      setIsAdmin(isAdminUser);
       setAuthLoading(false);
-      // Logika Navigasi setelah status login berubah
-      if (currentUser?.email === ADMIN_EMAIL) {
-        // Jika admin login, arahkan ke home (kecuali sedang edit)
-        if(page !== 'input') setPage('home');
+      
+      // Logika Navigasi HANYA saat status login berubah
+      if (isAdminUser) {
+        setPage('home'); // Jika admin login, arahkan ke home
       } else {
-        // Jika bukan admin atau belum login, arahkan ke daftar arsip
-        setPage('list');
+        setPage('list'); // Jika logout atau bukan admin, arahkan ke daftar arsip
       }
     });
     return () => unsubscribe();
-  }, [page]); // Menambahkan 'page' sebagai dependensi
+  }, []); // PERBAIKAN: Dependensi dikosongkan agar hanya berjalan sekali
 
   const handleLogin = async (email: string, password: string) => {
     try {
@@ -206,13 +206,11 @@ function InputArsipPage({ navigateTo, editingArsip, clearEditing }: { navigateTo
       if (!db) throw new Error("Database not initialized");
       
       if (editingArsip && editingArsip.id) {
-        // Update existing document
         const docRef = doc(db, 'arsip', editingArsip.id);
-        const { id, ...dataToUpdate } = formData; // Exclude id from data
+        const { id, ...dataToUpdate } = formData; 
         await updateDoc(docRef, dataToUpdate);
         alert('Arsip berhasil diperbarui!');
       } else {
-        // Add new document
         await addDoc(collection(db, 'arsip'), { ...formData, createdAt: serverTimestamp() });
         alert('Arsip berhasil disimpan!');
       }
