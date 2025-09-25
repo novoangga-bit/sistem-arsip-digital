@@ -31,13 +31,32 @@ try {
   console.error("Firebase initialization error", e);
 }
 
+// --- Tipe Data untuk Arsip ---
+type Arsip = {
+    id?: string;
+    noBerkas: string;
+    kodeKlasifikasi: string;
+    jenisArsip: string;
+    kurunWaktu: string;
+    tingkatPerkembangan: string;
+    jumlah: string;
+    keterangan: string;
+    noDefinitif: string;
+    lokasiSimpan: string;
+    retensiAktif: string;
+    retensiInaktif: string;
+    nasibAkhir: string;
+    kategoriArsip: string;
+    fileUrl: string;
+};
+
 // --- KOMPONEN UTAMA ---
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [page, setPage] = useState('list');
-  const [editingArsip, setEditingArsip] = useState<any | null>(null);
+  const [editingArsip, setEditingArsip] = useState<Arsip | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -74,7 +93,7 @@ export default function App() {
     setPage(pageName)
   };
 
-  const handleStartEdit = (arsip: any) => {
+  const handleStartEdit = (arsip: Arsip) => {
     setEditingArsip(arsip);
     navigateTo('input');
   };
@@ -146,14 +165,14 @@ function HomePage({ navigateTo }: { navigateTo: (page: string) => void }) {
   );
 }
 
-function InputArsipPage({ navigateTo, editingArsip, clearEditing }: { navigateTo: (page: string) => void; editingArsip: any | null; clearEditing: () => void; }) {
-  const initialState = {
+function InputArsipPage({ navigateTo, editingArsip, clearEditing }: { navigateTo: (page: string) => void; editingArsip: Arsip | null; clearEditing: () => void; }) {
+  const initialState: Arsip = {
     noBerkas: '', kodeKlasifikasi: '', jenisArsip: '', kurunWaktu: new Date().getFullYear().toString(),
     tingkatPerkembangan: 'asli', jumlah: '', keterangan: '', noDefinitif: '',
     lokasiSimpan: '', retensiAktif: '', retensiInaktif: '', nasibAkhir: 'permanen',
     kategoriArsip: 'biasa', fileUrl: ''
   };
-  const [formData, setFormData] = useState(initialState);
+  const [formData, setFormData] = useState<Arsip>(initialState);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -184,7 +203,7 @@ function InputArsipPage({ navigateTo, editingArsip, clearEditing }: { navigateTo
       
       if (editingArsip) {
         // Update existing document
-        const docRef = doc(db, 'arsip', editingArsip.id);
+        const docRef = doc(db, 'arsip', editingArsip.id!);
         const { id, ...dataToUpdate } = formData; // Exclude id from data
         await updateDoc(docRef, dataToUpdate);
         alert('Arsip berhasil diperbarui!');
@@ -256,19 +275,19 @@ function InputArsipPage({ navigateTo, editingArsip, clearEditing }: { navigateTo
 }
 
 
-function DaftarArsipPage({ navigateTo, isAdmin, handleStartEdit }: { navigateTo: (page: string) => void; isAdmin: boolean; handleStartEdit: (arsip: any) => void; }) {
-  const [arsipList, setArsipList] = useState<any[]>([]);
+function DaftarArsipPage({ navigateTo, isAdmin, handleStartEdit }: { navigateTo: (page: string) => void; isAdmin: boolean; handleStartEdit: (arsip: Arsip) => void; }) {
+  const [arsipList, setArsipList] = useState<Arsip[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [itemToDelete, setItemToDelete] = useState<any | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<Arsip | null>(null);
 
   useEffect(() => {
     if (!db) return;
     const q = query(collection(db, 'arsip'));
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const arsips: any[] = [];
+      const arsips: Arsip[] = [];
       querySnapshot.forEach((doc) => {
-        arsips.push({ id: doc.id, ...doc.data() });
+        arsips.push({ id: doc.id, ...doc.data() } as Arsip);
       });
       arsips.sort((a, b) => (b.createdAt?.toDate() || 0) - (a.createdAt?.toDate() || 0));
       setArsipList(arsips);
@@ -281,7 +300,7 @@ function DaftarArsipPage({ navigateTo, isAdmin, handleStartEdit }: { navigateTo:
   }, []);
 
   const handleDelete = async () => {
-    if (!itemToDelete) return;
+    if (!itemToDelete || !itemToDelete.id) return;
     try {
       await deleteDoc(doc(db, "arsip", itemToDelete.id));
       alert(`Arsip "${itemToDelete.noBerkas}" berhasil dihapus.`);
