@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { initializeApp, FirebaseApp } from 'firebase/app';
-import { getFirestore, collection, addDoc, onSnapshot, query, serverTimestamp, Firestore } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, onSnapshot, query, serverTimestamp, Firestore, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, Auth, User } from "firebase/auth";
 
 // --- KONFIGURASI PENTING ---
@@ -36,13 +36,19 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
-  const [page, setPage] = useState('home');
+  const [page, setPage] = useState('list');
+  const [editingArsip, setEditingArsip] = useState<any | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setIsAdmin(currentUser?.email === ADMIN_EMAIL);
       setAuthLoading(false);
+      if (!currentUser || currentUser.email !== ADMIN_EMAIL) {
+        setPage('list');
+      } else if (page !== 'input') { // Keep page if editing
+        setPage('home');
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -63,25 +69,28 @@ export default function App() {
     }
   };
   
-  const navigateTo = (pageName: string) => setPage(pageName);
+  const navigateTo = (pageName: string) => {
+    if(pageName !== 'input') setEditingArsip(null);
+    setPage(pageName)
+  };
+
+  const handleStartEdit = (arsip: any) => {
+    setEditingArsip(arsip);
+    navigateTo('input');
+  };
 
   if (authLoading) {
     return <div className="flex justify-center items-center h-screen"><p>Memuat...</p></div>;
   }
   
-  if (!user || !isAdmin) {
-     // Pengguna biasa atau belum login hanya bisa melihat daftar arsip dan tentang
-     if (page === 'input' || page === 'home') setPage('list'); // Redirect ke daftar jika mencoba akses input/home
-  }
-
   return (
     <div className="bg-gray-50 min-h-screen font-sans text-gray-800">
       <Navbar navigateTo={navigateTo} currentPage={page} isAdmin={isAdmin} handleLogout={handleLogout} />
       <main className="p-4 md:p-8">
         {page === 'login' && <LoginPage handleLogin={handleLogin} />}
         {isAdmin && page === 'home' && <HomePage navigateTo={navigateTo} />}
-        {isAdmin && page === 'input' && <InputArsipPage navigateTo={navigateTo} />}
-        {page === 'list' && <DaftarArsipPage navigateTo={navigateTo} isAdmin={isAdmin} />}
+        {isAdmin && page === 'input' && <InputArsipPage navigateTo={navigateTo} editingArsip={editingArsip} clearEditing={() => setEditingArsip(null)} />}
+        {page === 'list' && <DaftarArsipPage navigateTo={navigateTo} isAdmin={isAdmin} handleStartEdit={handleStartEdit} />}
         {page === 'about' && <AboutPage />}
       </main>
       <Footer />
@@ -137,15 +146,24 @@ function HomePage({ navigateTo }: { navigateTo: (page: string) => void }) {
   );
 }
 
-function InputArsipPage({ navigateTo }: { navigateTo: (page: string) => void }) {
-    const [formData, setFormData] = useState({
+function InputArsipPage({ navigateTo, editingArsip, clearEditing }: { navigateTo: (page: string) => void; editingArsip: any | null; clearEditing: () => void; }) {
+  const initialState = {
     noBerkas: '', kodeKlasifikasi: '', jenisArsip: '', kurunWaktu: new Date().getFullYear().toString(),
     tingkatPerkembangan: 'asli', jumlah: '', keterangan: '', noDefinitif: '',
     lokasiSimpan: '', retensiAktif: '', retensiInaktif: '', nasibAkhir: 'permanen',
     kategoriArsip: 'biasa', fileUrl: ''
-  });
+  };
+  const [formData, setFormData] = useState(initialState);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (editingArsip) {
+      setFormData(editingArsip);
+    } else {
+      setFormData(initialState);
+    }
+  }, [editingArsip]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -163,19 +181,37 @@ function InputArsipPage({ navigateTo }: { navigateTo: (page: string) => void }) 
 
     try {
       if (!db) throw new Error("Database not initialized");
-      await addDoc(collection(db, 'arsip'), { ...formData, createdAt: serverTimestamp() });
-      alert('Arsip berhasil disimpan!');
+      
+      if (editingArsip) {
+        // Update existing document
+        const docRef = doc(db, 'arsip', editingArsip.id);
+        const { id, ...dataToUpdate } = formData; // Exclude id from data
+        await updateDoc(docRef, dataToUpdate);
+        alert('Arsip berhasil diperbarui!');
+      } else {
+        // Add new document
+        await addDoc(collection(db, 'arsip'), { ...formData, createdAt: serverTimestamp() });
+        alert('Arsip berhasil disimpan!');
+      }
+      
+      clearEditing();
       navigateTo('list');
+
     } catch (err: any) {
-      setError('Gagal menyimpan arsip: ' + err.message);
+      setError('Gagal menyimpan data: ' + err.message);
     } finally {
       setIsSubmitting(false);
     }
   };
+  
+  const handleCancel = () => {
+      clearEditing();
+      navigateTo('list');
+  }
 
   return (
     <div className="max-w-4xl mx-auto bg-white p-8 rounded-xl shadow-lg">
-      <h2 className="text-2xl font-bold text-green-800 mb-6">Formulir Input Arsip Baru</h2>
+      <h2 className="text-2xl font-bold text-green-800 mb-6">{editingArsip ? 'Edit Arsip' : 'Formulir Input Arsip Baru'}</h2>
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-4">
@@ -209,9 +245,9 @@ function InputArsipPage({ navigateTo }: { navigateTo: (page: string) => void }) 
         </div>
         {error && <p className="text-red-500 text-sm">{error}</p>}
         <div className="flex justify-end gap-4 pt-4">
-          <button type="button" onClick={() => navigateTo('list')} className="py-2 px-4 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">Batal</button>
+          <button type="button" onClick={handleCancel} className="py-2 px-4 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">Batal</button>
           <button type="submit" disabled={isSubmitting} className="py-2 px-6 bg-green-600 text-white font-semibold rounded-md hover:bg-green-700 disabled:bg-green-300">
-            {isSubmitting ? 'Menyimpan...' : 'Simpan Arsip'}
+            {isSubmitting ? 'Menyimpan...' : (editingArsip ? 'Simpan Perubahan' : 'Simpan Arsip')}
           </button>
         </div>
       </form>
@@ -220,10 +256,11 @@ function InputArsipPage({ navigateTo }: { navigateTo: (page: string) => void }) 
 }
 
 
-function DaftarArsipPage({ navigateTo, isAdmin }: { navigateTo: (page: string) => void, isAdmin: boolean }) {
+function DaftarArsipPage({ navigateTo, isAdmin, handleStartEdit }: { navigateTo: (page: string) => void; isAdmin: boolean; handleStartEdit: (arsip: any) => void; }) {
   const [arsipList, setArsipList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [itemToDelete, setItemToDelete] = useState<any | null>(null);
 
   useEffect(() => {
     if (!db) return;
@@ -243,6 +280,19 @@ function DaftarArsipPage({ navigateTo, isAdmin }: { navigateTo: (page: string) =
     return () => unsubscribe();
   }, []);
 
+  const handleDelete = async () => {
+    if (!itemToDelete) return;
+    try {
+      await deleteDoc(doc(db, "arsip", itemToDelete.id));
+      alert(`Arsip "${itemToDelete.noBerkas}" berhasil dihapus.`);
+      setItemToDelete(null); 
+    } catch (error) {
+      console.error("Error removing document: ", error);
+      alert("Gagal menghapus arsip.");
+      setItemToDelete(null);
+    }
+  };
+
   const filteredArsip = arsipList.filter(arsip =>
     Object.values(arsip).some(value =>
       String(value).toLowerCase().includes(searchTerm.toLowerCase())
@@ -261,7 +311,7 @@ function DaftarArsipPage({ navigateTo, isAdmin }: { navigateTo: (page: string) =
             startY: 30,
             headStyles: { fillColor: [210, 244, 222] },
             didParseCell: function(data: any) {
-                if (data.column.index === 5 && data.section === 'body') {
+                if ((data.column.dataKey === 'lampiran' || data.column.dataKey === 'aksi') && data.section === 'body') {
                     data.cell.text = '';
                 }
             }
@@ -292,65 +342,93 @@ function DaftarArsipPage({ navigateTo, isAdmin }: { navigateTo: (page: string) =
   };
 
   return (
-    <div className="bg-white p-6 rounded-xl shadow-lg" id="print-area">
-      <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 print-hide">
-        <h2 className="text-2xl font-bold text-green-800">Daftar Arsip</h2>
-        <input type="text" placeholder="Cari arsip..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="border p-2 rounded-md w-full md:w-64" />
+    <>
+      <div className="bg-white p-6 rounded-xl shadow-lg" id="print-area">
+        <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 print-hide">
+          <h2 className="text-2xl font-bold text-green-800">Daftar Arsip</h2>
+          <input type="text" placeholder="Cari arsip..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="border p-2 rounded-md w-full md:w-64" />
+        </div>
+        <div className="flex flex-col md:flex-row justify-end items-center mb-4 gap-2 print-hide">
+          <ActionButton onClick={handlePrint} icon={<PrintIcon />} text="Print" />
+          <ActionButton onClick={downloadCSV} icon={<DownloadIcon />} text="Unduh CSV" />
+          <ActionButton onClick={downloadPDF} icon={<DownloadIcon />} text="Unduh PDF" />
+          {isAdmin && (
+            <button onClick={() => navigateTo('input')} className="w-full md:w-auto flex items-center justify-center gap-2 bg-green-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-green-700">
+              <PlusIcon /> Input Arsip Baru
+            </button>
+          )}
+        </div>
+        <div className="overflow-x-auto">
+          {loading ? <p>Memuat data...</p> : (
+              <table className="w-full text-sm text-left text-gray-500" id="arsipTable">
+                  <thead className="text-xs text-green-900 uppercase bg-green-200">
+                      <tr>
+                          <th scope="col" className="px-4 py-3">No.</th>
+                          <th scope="col" className="px-4 py-3">No. Berkas</th>
+                          <th scope="col" className="px-4 py-3">Jenis Arsip</th>
+                          <th scope="col" className="px-4 py-3">Kurun Waktu</th>
+                          <th scope="col" className="px-4 py-3">Lokasi</th>
+                          <th scope="col" className="px-4 py-3 print-hide" data-jspdf-skip="true">Lampiran</th>
+                          {isAdmin && <th scope="col" className="px-4 py-3 print-hide" data-jspdf-skip="true">Aksi</th>}
+                      </tr>
+                  </thead>
+                  <tbody>
+                  {filteredArsip.map((arsip, index) => (
+                      <tr key={arsip.id} className="bg-white border-b hover:bg-gray-50">
+                          <td className="px-4 py-3">{index + 1}</td>
+                          <td className="px-4 py-3 font-medium text-gray-900">{arsip.noBerkas}</td>
+                          <td className="px-4 py-3">{arsip.jenisArsip}</td>
+                          <td className="px-4 py-3">{arsip.kurunWaktu}</td>
+                          <td className="px-4 py-3">{arsip.lokasiSimpan}</td>
+                          <td className="px-4 py-3 print-hide">
+                              <a href={arsip.fileUrl} target="_blank" rel="noopener noreferrer" className="text-green-600 hover:underline">
+                                  Lihat File
+                              </a>
+                          </td>
+                          {isAdmin && (
+                            <td className="px-4 py-3 print-hide">
+                              <div className="flex items-center gap-2">
+                                <button onClick={() => handleStartEdit(arsip)} className="text-blue-500 hover:text-blue-700 p-1">
+                                  <EditIcon />
+                                </button>
+                                <button onClick={() => setItemToDelete(arsip)} className="text-red-500 hover:text-red-700 p-1">
+                                  <TrashIcon />
+                                </button>
+                              </div>
+                            </td>
+                          )}
+                      </tr>
+                  ))}
+                  {filteredArsip.length === 0 && (
+                      <tr><td colSpan={isAdmin ? 7 : 6} className="text-center py-10">Tidak ada data.</td></tr>
+                  )}
+                  </tbody>
+              </table>
+          )}
+        </div>
+        <style>{`
+              @media print {
+                  body * { visibility: hidden; }
+                  #print-area, #print-area * { visibility: visible; }
+                  #print-area { position: absolute; left: 0; top: 0; width: 100%; }
+                  .print-hide { display: none; }
+              }
+          `}</style>
       </div>
-      <div className="flex flex-col md:flex-row justify-end items-center mb-4 gap-2 print-hide">
-        <ActionButton onClick={handlePrint} icon={<PrintIcon />} text="Print" />
-        <ActionButton onClick={downloadCSV} icon={<DownloadIcon />} text="Unduh CSV" />
-        <ActionButton onClick={downloadPDF} icon={<DownloadIcon />} text="Unduh PDF" />
-        {isAdmin && (
-          <button onClick={() => navigateTo('input')} className="w-full md:w-auto flex items-center justify-center gap-2 bg-green-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-green-700">
-            <PlusIcon /> Input Arsip Baru
-          </button>
-        )}
-      </div>
-      <div className="overflow-x-auto">
-        {loading ? <p>Memuat data...</p> : (
-            <table className="w-full text-sm text-left text-gray-500" id="arsipTable">
-                <thead className="text-xs text-green-900 uppercase bg-green-200">
-                    <tr>
-                        <th scope="col" className="px-4 py-3">No.</th>
-                        <th scope="col" className="px-4 py-3">No. Berkas</th>
-                        <th scope="col" className="px-4 py-3">Jenis Arsip</th>
-                        <th scope="col" className="px-4 py-3">Kurun Waktu</th>
-                        <th scope="col" className="px-4 py-3">Lokasi</th>
-                        <th scope="col" className="px-4 py-3 print-hide">Lampiran</th>
-                    </tr>
-                </thead>
-                <tbody>
-                {filteredArsip.map((arsip, index) => (
-                    <tr key={arsip.id} className="bg-white border-b hover:bg-gray-50">
-                        <td className="px-4 py-3">{index + 1}</td>
-                        <td className="px-4 py-3 font-medium text-gray-900">{arsip.noBerkas}</td>
-                        <td className="px-4 py-3">{arsip.jenisArsip}</td>
-                        <td className="px-4 py-3">{arsip.kurunWaktu}</td>
-                        <td className="px-4 py-3">{arsip.lokasiSimpan}</td>
-                        <td className="px-4 py-3 print-hide">
-                            <a href={arsip.fileUrl} target="_blank" rel="noopener noreferrer" className="text-green-600 hover:underline">
-                                Lihat File
-                            </a>
-                        </td>
-                    </tr>
-                ))}
-                {filteredArsip.length === 0 && (
-                    <tr><td colSpan={6} className="text-center py-10">Tidak ada data.</td></tr>
-                )}
-                </tbody>
-            </table>
-        )}
-      </div>
-       <style>{`
-            @media print {
-                body * { visibility: hidden; }
-                #print-area, #print-area * { visibility: visible; }
-                #print-area { position: absolute; left: 0; top: 0; width: 100%; }
-                .print-hide { display: none; }
-            }
-        `}</style>
-    </div>
+      
+      {itemToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm mx-4">
+            <h3 className="text-lg font-bold mb-4">Konfirmasi Penghapusan</h3>
+            <p>Apakah Anda yakin ingin menghapus arsip dengan No. Berkas: <span className="font-semibold">"{itemToDelete.noBerkas}"</span>?</p>
+            <div className="flex justify-end gap-4 mt-6">
+              <button onClick={() => setItemToDelete(null)} className="py-2 px-4 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">Batal</button>
+              <button onClick={handleDelete} className="py-2 px-4 bg-red-600 text-white rounded-md hover:bg-red-700">Ya, Hapus</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -418,4 +496,6 @@ const ArchiveIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-
 const PrintIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>);
 const DownloadIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>);
 const ExternalLinkIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>);
+const TrashIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg>);
+const EditIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" /></svg>);
 
